@@ -2,9 +2,9 @@ Description: >
     Ernest Dogbe / Udcacity Project Udagram
 Parameters:
     
-	EnvironmentName:
-	    Description: An environment name that will be prefixed to resource names
-		Type: String
+    EnvironmentName:
+        Description: An environment name that will be prefixed to resource names
+        Type: String
 
 Resources:
 # instance profile contains the IAM Role name(s) that we want to associate to our auto scaling EC2 Servers
@@ -15,7 +15,7 @@ Resources:
         Properties: 
         Roles:
         - UdacityS3ReadOnlyEC2
-	
+    
 Outputs: 
 # This is also optional.
 # Bonus points for useful outputs!
