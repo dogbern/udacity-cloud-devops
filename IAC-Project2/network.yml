@@ -1,9 +1,5 @@
 Description: >
-    Ernest Dogbe / Udacity ND9991-C2-Infrastructure-As-Code
-    This template deploys a VPC, with a pair of public and private subnets spread 
-    across two Availabilty Zones. It deploys an Internet Gateway, with a default 
-    route on the public subnets. 
-
+    Ernest Dogbe / Udacity ND9991-C2-Infrastructure-As-Code / Project 2: Udagram
 Parameters:
 
     EnvironmentName:
@@ -43,18 +39,18 @@ Resources:
             CidrBlock: !Ref VpcCIDR
             EnableDnsHostnames: true
             Tags:
-                - Key: Name 
-                  Value: !Ref EnvironmentName
+                -   Key: Name 
+                    Value: !Ref EnvironmentName
     
     InternetGateway: 
         Type: AWS::EC2::InternetGateway
         Properties:
             Tags:
-                - Key: Name
-                  Value: !Ref EnvironmentName
+                -   Key: Name
+                    Value: !Ref EnvironmentName
 
     InternetGatewayAttachment:
-        Type: AWS::VPCGatewayAttachment
+        Type: AWS::EC2::VPCGatewayAttachment
         Properties:
             InternetGatewayId: !Ref InternetGateway
             VpcId: !Ref VPC
@@ -63,51 +59,51 @@ Resources:
         Type: AWS::EC2::Subnet
         Properties:
             VpcId: !Ref VPC
-            AvailabilityZone: !Select [ 0, !GetAZz '' ]
+            AvailabilityZone: !Select [ 0, !GetAZs '' ]
             CidrBlock: !Ref PublicSubnet1CIDR
             MapPublicIpOnLaunch: true
             Tags:
-                - Key: Name
-                  Value: !Sub ${EnvironmentName} Public Subnet (AZ1)
+                -   Key: Name
+                    Value: !Sub ${EnvironmentName} Public Subnet (AZ1)
     
     PublicSubnet2:
         Type: AWS::EC2::Subnet
         Properties:
             VpcId: !Ref VPC
-            AvailabilityZone: !Select [ 1, !GetAZz '' ]
+            AvailabilityZone: !Select [ 1, !GetAZs '' ]
             CidrBlock: !Ref PublicSubnet2CIDR
             MapPublicIpOnLaunch: true
             Tags:
-                - Key: Name
-                  Value: !Sub ${EnvironmentName} Public Subnet (AZ2)
+                -   Key: Name
+                    Value: !Sub ${EnvironmentName} Public Subnet (AZ2)
 
     PrivateSubnet1:
         Type: AWS::EC2::Subnet
         Properties:
             VpcId: !Ref VPC
-            AvailabilityZone: !Select [ 0, !GetAZz '' ]
+            AvailabilityZone: !Select [ 0, !GetAZs '' ]
             CidrBlock: !Ref PrivateSubnet1CIDR
             MapPublicIpOnLaunch: false
             Tags:
-                - Key: Name
-                  Value: !Sub ${EnvironmentName} Private Subnet (AZ1)
+                -   Key: Name
+                    Value: !Sub ${EnvironmentName} Private Subnet (AZ1)
 
     PrivateSubnet2:
         Type: AWS::EC2::Subnet
         Properties:
             VpcId: !Ref VPC
-            AvailabilityZone: !Select [ 1, !GetAZz '' ]
+            AvailabilityZone: !Select [ 1, !GetAZs '' ]
             CidrBlock: !Ref PrivateSubnet2CIDR
             MapPublicIpOnLaunch: false
             Tags:
-                - Key: Name
-                  Value: !Sub ${EnvironmentName} Private Subnet (AZ2)
+                -   Key: Name
+                    Value: !Sub ${EnvironmentName} Private Subnet (AZ2)
     
     NatGateway1EIP:
         Type: AWS::EC2::EIP
         DependsOn: InternetGatewayAttachment
         Properties:
-            Domain: VPC
+            Domain: vpc
 
     NatGateway2EIP:
         Type: AWS::EC2::EIP
@@ -133,8 +129,8 @@ Resources:
         Properties:
             VpcId: !Ref VPC
             Tags:
-                - Key: Name
-                  Value: !Sub ${EnvironmentName} Public Routes
+                -   Key: Name
+                    Value: !Sub ${EnvironmentName} Public Routes
     
     DefaultPublicRoute:
         Type: AWS::EC2::Route
@@ -161,8 +157,8 @@ Resources:
         Properties: 
             VpcId: !Ref VPC
             Tags: 
-                - Key: Name 
-                  Value: !Sub ${EnvironmentName} Private Routes (AZ1)
+                -   Key: Name 
+                    Value: !Sub ${EnvironmentName} Private Routes (AZ1)
 
     DefaultPrivateRoute1:
         Type: AWS::EC2::Route
@@ -177,13 +173,13 @@ Resources:
             RouteTableId: !Ref PrivateRouteTable1
             SubnetId: !Ref PrivateSubnet1
 
-     PrivateRouteTable2:
+    PrivateRouteTable2:
         Type: AWS::EC2::RouteTable
         Properties: 
             VpcId: !Ref VPC
             Tags: 
-                - Key: Name 
-                  Value: !Sub ${EnvironmentName} Private Routes (AZ2)
+                -   Key: Name 
+                    Value: !Sub ${EnvironmentName} Private Routes (AZ2)
 
     DefaultPrivateRoute2:
         Type: AWS::EC2::Route

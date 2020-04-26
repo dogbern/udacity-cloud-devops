@@ -1,5 +1,5 @@
 Description: >
-    Ernest Dogbe / Udcacity Project Udagram
+    Ernest Dogbe / Udacity ND9991-C2-Infrastructure-As-Code / Project 2: Udagram
 Parameters:
     
     EnvironmentName:
@@ -7,31 +7,183 @@ Parameters:
         Type: String
 
 Resources:
-# instance profile contains the IAM Role name(s) that we want to associate to our auto scaling EC2 Servers
-# never give too much permissions to your EC2 instances! if they get hacked, the permissions get hacked also!
-# in this example, I create a Role called UdacityS3ReadOnlyC2 and just give it a policy of S3 Read-Only Access
-    ProfileWithRolesForOurApp:
+    LBSecGroup:
+        Type: AWS::EC2::SecurityGroup
+        Properties:
+            GroupDescription: Allow http to our load balancer
+            VpcId:
+                Fn::ImportValue:
+                    !Sub ${EnvironmentName}-VPCID
+            SecurityGroupIngress:
+            -   IpProtocol: tcp
+                FromPort: 80
+                ToPort: 80
+                CidrIp: 0.0.0.0/0
+            SecurityGroupEgress:
+            -   IpProtocol: tcp
+                FromPort: 80
+                ToPort: 80
+                CidrIp: 0.0.0.0/0
+    BastionSecGroup:
+        Type: AWS::EC2::SecurityGroup
+        Properties:
+            GroupDescription: Allow SSH access to web servers
+            VpcId:
+                Fn::ImportValue:
+                    !Sub ${EnvironmentName}-VPCID
+            SecurityGroupIngress:
+            -   IpProtocol: tcp
+                FromPort: 22
+                ToPort: 22
+                CidrIp: 70.142.51.58/32
+            Tags:
+            -   Key: Name 
+                Value: !Sub ${EnvironmentName}-Bastion-SG
+    WebServerSecGroup:
+        Type: AWS::EC2::SecurityGroup
+        Properties:
+            GroupDescription: Allow http to our hosts
+            VpcId:
+                Fn::ImportValue:
+                    !Sub ${EnvironmentName}-VPCID
+            SecurityGroupIngress:
+            -   IpProtocol: tcp
+                FromPort: 80
+                ToPort: 80
+                CidrIp: 0.0.0.0/0
+            -   IpProtocol: tcp
+                FromPort: 22
+                ToPort: 22
+                CidrIp: 10.0.0.0/16
+            SecurityGroupEgress:
+            -   IpProtocol: tcp
+                FromPort: 0
+                ToPort: 65535
+                CidrIp: 0.0.0.0/0
+    WebAppLaunchConfig:
+        Type: AWS::AutoScaling::LaunchConfiguration
+        Properties:
+            UserData:
+                Fn::Base64: !Sub | 
+                    #!/bin/bash 
+                    apt-get update -y 
+                    apt-get install awscli -y 
+                    apt-get install apache2 -y 
+                    apt-get install unzip
+                    systemctl start apache2.service
+                    cd /var/www/html 
+                    aws s3 cp s3://udacity-demo-1/udacity.zip .
+                    unzip -o udacity.zip
+            IamInstanceProfile: !Ref S3ReadOnlyInstanceProfile
+            ImageId: ami-0d1cd67c26f5fca19
+            SecurityGroups:
+            -   Ref: WebServerSecGroup
+            InstanceType: t2.medium
+            KeyName: 'oregon-private'
+            BlockDeviceMappings:
+            -   DeviceName: "/dev/sdb"
+                Ebs:
+                    VolumeSize: 10
+    WebAppGroup:
+        Type: AWS::AutoScaling::AutoScalingGroup
+        Properties:
+            VPCZoneIdentifier:
+            -   Fn::ImportValue:
+                    !Sub ${EnvironmentName}-PRIV-NETS
+            LaunchConfigurationName:
+                Ref: WebAppLaunchConfig
+            MinSize: '4'
+            MaxSize: '4'
+            TargetGroupARNs:
+            -   Ref: WebAppTargetGroup
+    WebAppLB:
+        Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+        Properties:
+            Subnets:
+            -   Fn::ImportValue: !Sub ${EnvironmentName}-PUB1-SN
+            -   Fn::ImportValue: !Sub ${EnvironmentName}-PUB2-SN
+            SecurityGroups:
+            -   Ref: LBSecGroup
+    Listener:
+        Type: AWS::ElasticLoadBalancingV2::Listener
+        Properties:
+            DefaultActions:
+            -   Type: forward
+                TargetGroupArn:
+                    Ref: WebAppTargetGroup
+            LoadBalancerArn:
+                Ref: WebAppLB
+            Port: 80
+            Protocol: HTTP
+    ALBListenerRule:
+        Type: AWS::ElasticLoadBalancingV2::ListenerRule
+        Properties:
+            Actions:
+            -   Type: forward
+                TargetGroupArn: !Ref 'WebAppTargetGroup'
+            Conditions:
+            -   Field: path-pattern
+                Values: [/]
+            ListenerArn: !Ref 'Listener'
+            Priority: 1
+    WebAppTargetGroup:
+        Type: AWS::ElasticLoadBalancingV2::TargetGroup
+        Properties:
+            HealthCheckIntervalSeconds: 10
+            HealthCheckPath: /
+            HealthCheckProtocol: HTTP
+            HealthCheckTimeoutSeconds: 8
+            HealthyThresholdCount: 2
+            Port: 80
+            Protocol: HTTP
+            UnhealthyThresholdCount: 5
+            VpcId:
+                Fn::ImportValue:
+                    Fn::Sub: ${EnvironmentName}-VPCID
+    S3ReadOnlyRole:
+        Type: AWS::IAM::Role
+        Properties:
+            AssumeRolePolicyDocument:
+                Version: 2012-10-17
+                Statement:
+                -   Effect: Allow
+                    Principal:
+                        Service:
+                        -   ec2.amazonaws.com
+                    Action:
+                        -   'sts:AssumeRole'
+            Path: /
+            ManagedPolicyArns:
+                -   arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
+    S3ReadOnlyInstanceProfile:
         Type: AWS::IAM::InstanceProfile
         Properties: 
-        Roles:
-        - UdacityS3ReadOnlyEC2
-    
+            Path: /
+            Roles:
+                -   !Ref S3ReadOnlyRole
+    BastionInstance:
+        Type: AWS::EC2::Instance
+        Properties:
+            ImageId: ami-01f08ef3e76b957e5
+            InstanceType: t2.micro
+            SubnetId:
+                Fn::ImportValue: 
+                    Fn::Sub: ${EnvironmentName}-PUB1-SN
+            AvailabilityZone: !Select [ 0, !GetAZs '' ]
+            SecurityGroupIds:
+            -   Ref: BastionSecGroup
+            KeyName: 'ec2_oregon_pem'
+            Tags:
+                -   Key: Name 
+                    Value: !Sub ${EnvironmentName}-bastion-host
 Outputs: 
-# This is also optional.
-# Bonus points for useful outputs!
-# for example, if you create a Load Balancer
-# it's nice to output the URL to it here, so that we don't have to go to the console to get it.
-
-# Sample UserData
-# When creating your Launch Configuration, you may need a UserData script
-# here's one that you can use for Ubuntu Linux that will:
-# Install Apache Web Server, Start it, and create an index.html that will be displayed
-# when you visit the IP address of this server with your web browser
-#Here it is:
-#
-#          #!/bin/bash
-#          apt-get update -y
-#          apt-get install apache2 -y
-#          systemctl start apache2.service
-#          cd /var/www/html
-#          echo "Udacity Demo Web Server Up and Running!" > index.html
+    LoadBalancer:
+        Description: DNS for the LoadBalancer
+        Value: !Join ["", [ 'http://', !GetAtt WebAppLB.DNSName ]]
+        Export:
+            Name: !Sub ${EnvironmentName}-LB-DNS-NAME
+    SSHBastionHost:
+        Description: Bastion host
+        Value: !Ref BastionInstance
+        Export:
+            Name: !Sub ${EnvironmentName}-BastionHost
