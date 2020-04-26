@@ -79,7 +79,6 @@ Resources:
             SecurityGroups:
             -   Ref: WebServerSecGroup
             InstanceType: t2.medium
-            KeyName: 'oregon-private'
             BlockDeviceMappings:
             -   DeviceName: "/dev/sdb"
                 Ebs:
@@ -172,7 +171,6 @@ Resources:
             AvailabilityZone: !Select [ 0, !GetAZs '' ]
             SecurityGroupIds:
             -   Ref: BastionSecGroup
-            KeyName: 'ec2_oregon_pem'
             Tags:
                 -   Key: Name 
                     Value: !Sub ${EnvironmentName}-bastion-host
